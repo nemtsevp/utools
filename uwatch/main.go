@@ -15,6 +15,7 @@ func die(f string, args ...interface{}) {
 }
 
 func killall(pid int, sig syscall.Signal) {
+	signal.Ignore(sig)
 	for _, p := range []int{pid, -os.Getpid()} {
 		if err := syscall.Kill(p, sig); err != nil && err != syscall.ESRCH {
 			die("kill(%v, %v): %v", p, sig, err)
@@ -51,12 +52,11 @@ func main() {
 	os.Stdout.Close()
 
 	ticker := time.NewTicker(time.Millisecond * 100)
-	waiting := false
+	waitdeath := false
 
 	for {
 		select {
 		case err := <-done:
-			signal.Ignore()
 			killall(child.Process.Pid, syscall.SIGTERM)
 			if err == nil {
 				os.Exit(0)
@@ -65,19 +65,17 @@ func main() {
 			}
 
 		case sig := <-sigs:
-			signal.Ignore()
 			killall(child.Process.Pid, sig.(syscall.Signal))
-			waiting = true
+			waitdeath = true
 
 		case <-ticker.C:
-			if waiting {
+			if waitdeath {
 				killall(child.Process.Pid, syscall.SIGKILL)
 				os.Exit(1)
 			} else {
 				if os.Getppid() == 1 {
-					signal.Ignore()
 					killall(child.Process.Pid, syscall.SIGHUP)
-					waiting = true
+					waitdeath = true
 				}
 			}
 		}
