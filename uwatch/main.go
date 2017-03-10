@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,6 +25,14 @@ func killall(pid int, sig syscall.Signal) {
 }
 
 func main() {
+	var deathTimeout time.Duration
+	flag.DurationVar(&deathTimeout, "t", time.Millisecond*200, "death timeout")
+	flag.Parse()
+
+	if flag.NArg() == 0 {
+		die("command was not specified")
+	}
+
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs,
 		syscall.SIGHUP,
@@ -34,7 +43,7 @@ func main() {
 		die("setpgid: %v", err)
 	}
 
-	child := exec.Command(os.Args[1], os.Args[2:]...)
+	child := exec.Command(flag.Args()[0], flag.Args()[1:]...)
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
@@ -51,7 +60,7 @@ func main() {
 	os.Stdin.Close()
 	os.Stdout.Close()
 
-	ticker := time.NewTicker(time.Millisecond * 100)
+	ticker := time.NewTicker(deathTimeout)
 	waitdeath := false
 
 	for {
