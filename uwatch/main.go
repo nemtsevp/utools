@@ -24,14 +24,15 @@ func killall(pid int, sig syscall.Signal) {
 	}
 }
 
+const (
+	procType   = "PROC_TYPE"
+	parentProc = "1"
+)
+
 func main() {
 	var deathTimeout time.Duration
 	flag.DurationVar(&deathTimeout, "t", time.Millisecond*200, "death timeout")
 	flag.Parse()
-
-	if flag.NArg() == 0 {
-		die("command was not specified")
-	}
 
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs,
@@ -39,17 +40,40 @@ func main() {
 		syscall.SIGINT,
 		syscall.SIGTERM)
 
-	if err := syscall.Setpgid(os.Getpid(), os.Getpid()); err != nil {
-		die("setpgid: %v", err)
+	if flag.NArg() == 0 {
+		die("command was not specified")
 	}
 
-	child := exec.Command(flag.Args()[0], flag.Args()[1:]...)
+	var child *exec.Cmd
+	if os.Getenv(procType) == parentProc {
+		// it's a child process
+		if err := syscall.Setpgid(os.Getpid(), os.Getpid()); err != nil {
+			die("setpgid: %v", err)
+		}
+
+		child = exec.Command(flag.Args()[0], flag.Args()[1:]...)
+	} else {
+		// it's a parent process
+		child = exec.Command(os.Args[0], os.Args[1:]...)
+		if err := os.Setenv(procType, parentProc); err != nil {
+			die("setenv: %v", err)
+		}
+	}
+
+	defer func() {
+		if typ := os.Getenv(procType); typ == parentProc {
+			if err := os.Unsetenv(procType); err != nil {
+				die("unsetenv: %v", err)
+			}
+		}
+	}()
+
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr
 
 	if err := child.Start(); err != nil {
-		die("%v", err)
+		die("start: %v", err)
 	}
 
 	done := make(chan error)
