@@ -49,7 +49,6 @@ func main() {
 			die("setpgid: %v", err)
 		}
 		child = exec.Command(flag.Args()[0], flag.Args()[1:]...)
-		pollInterval = 0
 	}
 
 	child.Stdin = os.Stdin
@@ -121,6 +120,7 @@ func main() {
 
 		case <-pollTick:
 			if os.Getppid() == 1 {
+				msginfo("detected parent death")
 				softKillAll(syscall.SIGHUP)
 			}
 
