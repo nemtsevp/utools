@@ -3,12 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
 
 const (
@@ -51,15 +54,57 @@ func main() {
 		child = exec.Command(flag.Args()[0], flag.Args()[1:]...)
 	}
 
-	child.Stdin = os.Stdin
-	child.Stdout = os.Stdout
-	child.Stderr = os.Stderr
-
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs,
 		syscall.SIGHUP,
 		syscall.SIGINT,
 		syscall.SIGTERM)
+
+	child.Stdin = os.Stdin
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+
+	if isatty.IsTerminal(os.Stdin.Fd()) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			die("pipe: %v", err)
+		}
+
+		child.Stdin = r
+
+		go func() {
+			io.Copy(w, os.Stdin)
+			w.Close()
+		}()
+	}
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			die("pipe: %v", err)
+		}
+
+		child.Stdout = w
+
+		go func() {
+			io.Copy(os.Stdout, r)
+			r.Close()
+		}()
+	}
+
+	if isatty.IsTerminal(os.Stderr.Fd()) {
+		r, w, err := os.Pipe()
+		if err != nil {
+			die("pipe: %v", err)
+		}
+
+		child.Stderr = w
+
+		go func() {
+			io.Copy(os.Stderr, r)
+			r.Close()
+		}()
+	}
 
 	msginfo("spawn: %s", strings.Join(child.Args, " "))
 
@@ -69,13 +114,14 @@ func main() {
 
 	msginfo("spawn: child pid is %v", child.Process.Pid)
 
+	child.Stdin.(io.Closer).Close()
+	child.Stdout.(io.Closer).Close()
+	child.Stderr.(io.Closer).Close()
+
 	done := make(chan error)
 	go func() {
 		done <- child.Wait()
 	}()
-
-	os.Stdin.Close()
-	os.Stdout.Close()
 
 	var (
 		pollTick <-chan time.Time
