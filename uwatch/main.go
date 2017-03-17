@@ -61,13 +61,13 @@ func main() {
 		syscall.SIGINT,
 		syscall.SIGTERM)
 
-	msginfo("exec: %s", strings.Join(child.Args, " "))
+	msginfo("spawn: %s", strings.Join(child.Args, " "))
 
 	if err := child.Start(); err != nil {
-		die("exec: %v", err)
+		die("spawn: %v", err)
 	}
 
-	msginfo("exec: child pid is %v", child.Process.Pid)
+	msginfo("spawn: child pid is %v", child.Process.Pid)
 
 	done := make(chan error)
 	go func() {
