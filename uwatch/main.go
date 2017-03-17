@@ -65,45 +65,15 @@ func main() {
 	child.Stderr = os.Stderr
 
 	if isatty.IsTerminal(os.Stdin.Fd()) {
-		r, w, err := os.Pipe()
-		if err != nil {
-			die("pipe: %v", err)
-		}
-
-		child.Stdin = r
-
-		go func() {
-			io.Copy(w, os.Stdin)
-			w.Close()
-		}()
+		child.Stdin = rpipe(os.Stdin)
 	}
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		r, w, err := os.Pipe()
-		if err != nil {
-			die("pipe: %v", err)
-		}
-
-		child.Stdout = w
-
-		go func() {
-			io.Copy(os.Stdout, r)
-			r.Close()
-		}()
+		child.Stdout = wpipe(os.Stdout)
 	}
 
 	if isatty.IsTerminal(os.Stderr.Fd()) {
-		r, w, err := os.Pipe()
-		if err != nil {
-			die("pipe: %v", err)
-		}
-
-		child.Stderr = w
-
-		go func() {
-			io.Copy(os.Stderr, r)
-			r.Close()
-		}()
+		child.Stderr = wpipe(os.Stderr)
 	}
 
 	msginfo("spawn: %s", strings.Join(child.Args, " "))
@@ -195,4 +165,32 @@ func msginfo(f string, args ...interface{}) {
 
 func msg(f string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, fmt.Sprintf("%s[%v]: %s\n", os.Args[0], os.Getpid(), f), args...)
+}
+
+func rpipe(std io.Reader) io.Reader {
+	r, w, err := os.Pipe()
+	if err != nil {
+		die("pipe: %v", err)
+	}
+
+	go func() {
+		io.Copy(w, std)
+		w.Close()
+	}()
+
+	return r
+}
+
+func wpipe(std io.Writer) io.Writer {
+	r, w, err := os.Pipe()
+	if err != nil {
+		die("pipe: %v", err)
+	}
+
+	go func() {
+		io.Copy(os.Stdout, r)
+		r.Close()
+	}()
+
+	return w
 }
