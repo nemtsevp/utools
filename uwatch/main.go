@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kr/pty"
 	"github.com/mattn/go-isatty"
 )
 
@@ -182,13 +183,13 @@ func rpipe(std io.Reader) io.Reader {
 }
 
 func wpipe(std io.Writer) io.Writer {
-	r, w, err := os.Pipe()
+	r, w, err := pty.Open()
 	if err != nil {
-		die("pipe: %v", err)
+		die("pty: %s", err)
 	}
 
 	go func() {
-		io.Copy(os.Stdout, r)
+		io.Copy(std, r)
 		r.Close()
 	}()
 
