@@ -55,7 +55,7 @@ func main() {
 		child = exec.Command(flag.Args()[0], flag.Args()[1:]...)
 	}
 
-	sigs := make(chan os.Signal)
+	sigs := make(chan os.Signal, 100)
 	signal.Notify(sigs,
 		syscall.SIGHUP,
 		syscall.SIGINT,

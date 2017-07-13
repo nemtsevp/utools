@@ -4,7 +4,7 @@ import (
 	"syscall"
 )
 
-var signals = []struct {
+var signals = [...]struct {
 	code syscall.Signal
 	name string
 }{
